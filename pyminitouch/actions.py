@@ -115,6 +115,9 @@ class MNTDevice(object):
         self.connection = None
         self.logger = logger
         self.start()
+    
+    def __del__(self):
+        self.stop()
 
     def reset(self):
         self.stop()
@@ -200,7 +203,7 @@ class MNTDevice(object):
             _builder.publish(self.connection)
 
     # extra functions' name starts with 'ext_'
-    def ext_smooth_swipe(
+    def ext_swipe(
         self, points, pressure=100, duration=None, part=None, no_down=None, no_up=None
     ):
         """
@@ -241,6 +244,51 @@ class MNTDevice(object):
                 (cur_point[0] + i * offset[0], cur_point[1] + i * offset[1])
                 for i in range(part + 1)
             ]
+            self.swipe(
+                new_points,
+                pressure=pressure,
+                duration=duration,
+                no_down=no_down,
+                no_up=no_up,
+            )
+
+    def ext_swipe_dragless(
+        self, points, pressure=100, duration=None, part=None, no_down=None, no_up=None, dupe_last=0
+    ):
+        """
+        Smoothly swipe between points, one by one, and duplicate the last point to stop momentum.
+
+        :param points: List of points to swipe through, e.g., [(x1, y1), (x2, y2)]
+        :param pressure: Touch pressure (default: 100)
+        :param duration: Delay between points (default: None)
+        :param part: Number of steps to split each segment into (default: 10)
+        :param no_down: If True, do not send a 'down' event at the beginning (default: False)
+        :param no_up: If True, do not send an 'up' event at the end (default: False)
+        :param dupe_last: Number of times to duplicate the last point to stop momentum (default: 0)
+        :return: None
+        """
+        if not part:
+            part = 10
+
+        points = [list(map(int, each_point)) for each_point in points]
+
+        for each_index in range(len(points) - 1):
+            cur_point = points[each_index]
+            next_point = points[each_index + 1]
+
+            offset = (
+                int((next_point[0] - cur_point[0]) / part),
+                int((next_point[1] - cur_point[1]) / part),
+            )
+            new_points = [
+                (cur_point[0] + i * offset[0], cur_point[1] + i * offset[1])
+                for i in range(part + 1)
+            ]
+
+            # Duplicate the last point `dupe_last` times
+            if each_index == len(points) - 2:  # Only for the last segment
+                new_points.extend([new_points[-1]] * dupe_last)
+
             self.swipe(
                 new_points,
                 pressure=pressure,

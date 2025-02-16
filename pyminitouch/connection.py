@@ -26,38 +26,44 @@ class MNTInstaller(object):
         self.download_target_mnt()
 
     def get_abi(self):
-        abi = subprocess.getoutput(
-            "{} -s {} shell getprop ro.product.cpu.abi".format(_ADB, self.device_id)
-        )
-        self.logger.info("device {} is {}".format(self.device_id, abi))
+        abi = subprocess.check_output(
+            "{} -s {} shell getprop ro.product.cpu.abi".format(_ADB, self.device_id),
+            errors='strict',
+            stdin=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        self.logger.info("{}.abi = {}".format(self.device_id, abi))
         return abi
 
     def download_target_mnt(self):
-        abi = self.get_abi()
+        abi = self.abi
         target_url = "{}/{}/bin/minitouch".format(config.MNT_PREBUILT_URL, abi)
-        self.logger.info("target minitouch url: " + target_url)
+        self.logger.info("downloading minitouch binary")
         mnt_path = download_file(target_url)
 
         # push and grant
         subprocess.check_call(
             [_ADB, "-s", self.device_id, "push", mnt_path, config.MNT_HOME],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
         )
         subprocess.check_call(
             [_ADB, "-s", self.device_id, "shell", "chmod", "777", config.MNT_HOME],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
         )
-        self.logger.info("minitouch installed in {}".format(config.MNT_HOME))
-
-        self.logger.info("killing all instances of minitouch")
+        self.logger.info("{}.binary_path = {}".format(self.device_id, config.MNT_HOME))
 
         subprocess.run(
             [_ADB, "-s", self.device_id, "shell", "killall", "minitouch"],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
         )
+
+        self.logger.info("killed all instances of minitouch")
 
         # remove temp
         os.remove(mnt_path)
@@ -87,9 +93,8 @@ class MNTServer(object):
 
         self.logger = logger
         self.device_id = device_id
-        self.logger.info("searching a usable port ...")
         self.port = self._get_port()
-        self.logger.info("device {} bind to port {}".format(device_id, self.port))
+        self.logger.info("{}.bound_port = {}".format(device_id, self.port))
 
         # check minitouch
         self.installer = MNTInstaller(device_id, self.logger)
@@ -108,7 +113,7 @@ class MNTServer(object):
     def stop(self):
         self.mnt_process and self.mnt_process.kill()
         self._PORT_SET.add(self.port)
-        self.logger.info("device {} unbind to {}".format(self.device_id, self.port))
+        self.logger.info("device {} unbound from port {}".format(self.device_id, self.port))
 
     @classmethod
     def _get_port(cls):
@@ -129,7 +134,11 @@ class MNTServer(object):
             "localabstract:minitouch",
         ]
         self.logger.debug("forward command: {}".format(" ".join(command_list)))
-        output = subprocess.check_output(command_list)
+        output = subprocess.check_output(
+            command_list,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+        )
         self.logger.debug("output: {}".format(output))
 
     def _start_mnt(self):
@@ -141,8 +150,13 @@ class MNTServer(object):
             "shell",
             "/data/local/tmp/minitouch",
         ]
-        self.logger.info("start minitouch: {}".format(" ".join(command_list)))
-        self.mnt_process = subprocess.Popen(command_list, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.logger.info("{}.start_command = {}".format(self.device_id, " ".join(command_list)))
+        self.mnt_process = subprocess.Popen(
+            command_list,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+        )
 
     def heartbeat(self):
         """ check if minitouch process alive """
@@ -155,7 +169,7 @@ class MNTConnection(object):
     _DEFAULT_HOST = config.DEFAULT_HOST
     _DEFAULT_BUFFER_SIZE = config.DEFAULT_BUFFER_SIZE
 
-    def __init__(self, port, loggesr):
+    def __init__(self, port, logger):
         self.logger = logger
         self.port = port
 
@@ -186,11 +200,6 @@ class MNTConnection(object):
 
         self.logger.info(
             "minitouch running on port: {}, pid: {}".format(self.port, self.pid)
-        )
-        self.logger.info(
-            "max_contact: {}; max_x: {}; max_y: {}; max_pressure: {}".format(
-                max_contacts, max_x, max_y, max_pressure
-            )
         )
 
     def disconnect(self):
