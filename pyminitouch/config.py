@@ -13,7 +13,7 @@ DEFAULT_DELAY = 0.05
 
 # installer
 # using stolen binaries from god knows where
-MNT_PREBUILT_URL = r"https://github.com/4pii4/stf-binaries/raw/master/node_modules/minitouch-prebuilt/prebuilt"
+MNT_PREBUILT_URL = r"https://github.com/spx-missile/stf-binaries/raw/master/node_modules/minitouch-prebuilt/prebuilt"
 MNT_HOME = "/data/local/tmp/minitouch"
 
 # system
