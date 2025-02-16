@@ -20,45 +20,48 @@ _ADB = config.ADB_EXECUTOR
 class MNTInstaller(object):
     """ install minitouch for android devices """
 
-    def __init__(self, device_id):
+    def __init__(self, device_id, logger):
+        self.logger = logger
         self.device_id = device_id
         self.abi = self.get_abi()
-        if self.is_mnt_existed():
-            logger.info("minitouch already existed in {}".format(device_id))
-        else:
-            self.download_target_mnt()
+        self.download_target_mnt()
 
     def get_abi(self):
         abi = subprocess.getoutput(
             "{} -s {} shell getprop ro.product.cpu.abi".format(_ADB, self.device_id)
         )
-        logger.info("device {} is {}".format(self.device_id, abi))
+        self.logger.info("device {} is {}".format(self.device_id, abi))
         return abi
 
     def download_target_mnt(self):
         abi = self.get_abi()
         target_url = "{}/{}/bin/minitouch".format(config.MNT_PREBUILT_URL, abi)
-        logger.info("target minitouch url: " + target_url)
+        self.logger.info("target minitouch url: " + target_url)
         mnt_path = download_file(target_url)
 
         # push and grant
         subprocess.check_call(
-            [_ADB, "-s", self.device_id, "push", mnt_path, config.MNT_HOME]
+            [_ADB, "-s", self.device_id, "push", mnt_path, config.MNT_HOME],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
         subprocess.check_call(
-            [_ADB, "-s", self.device_id, "shell", "chmod", "777", config.MNT_HOME]
+            [_ADB, "-s", self.device_id, "shell", "chmod", "777", config.MNT_HOME],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
-        logger.info("minitouch already installed in {}".format(config.MNT_HOME))
+        self.logger.info("minitouch installed in {}".format(config.MNT_HOME))
+
+        self.logger.info("killing all instances of minitouch")
+
+        subprocess.run(
+            [_ADB, "-s", self.device_id, "shell", "killall", "minitouch"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
 
         # remove temp
         os.remove(mnt_path)
-
-    def is_mnt_existed(self):
-        file_list = subprocess.check_output(
-            [_ADB, "-s", self.device_id, "shell", "ls", "/data/local/tmp"]
-        )
-        return "minitouch" in file_list.decode(config.DEFAULT_CHARSET)
-
 
 class MNTServer(object):
     """
@@ -80,16 +83,17 @@ class MNTServer(object):
 
     _PORT_SET = config.PORT_SET
 
-    def __init__(self, device_id):
+    def __init__(self, device_id, logger):
         assert is_device_connected(device_id)
 
+        self.logger = logger
         self.device_id = device_id
-        logger.info("searching a usable port ...")
+        self.logger.info("searching a usable port ...")
         self.port = self._get_port()
-        logger.info("device {} bind to port {}".format(device_id, self.port))
+        self.logger.info("device {} bind to port {}".format(device_id, self.port))
 
         # check minitouch
-        self.installer = MNTInstaller(device_id)
+        self.installer = MNTInstaller(device_id, self.logger)
 
         # keep minitouch alive
         self._forward_port()
@@ -105,7 +109,7 @@ class MNTServer(object):
     def stop(self):
         self.mnt_process and self.mnt_process.kill()
         self._PORT_SET.add(self.port)
-        logger.info("device {} unbind to {}".format(self.device_id, self.port))
+        self.logger.info("device {} unbind to {}".format(self.device_id, self.port))
 
     @classmethod
     def _get_port(cls):
@@ -125,9 +129,9 @@ class MNTServer(object):
             "tcp:{}".format(self.port),
             "localabstract:minitouch",
         ]
-        logger.debug("forward command: {}".format(" ".join(command_list)))
+        self.logger.debug("forward command: {}".format(" ".join(command_list)))
         output = subprocess.check_output(command_list)
-        logger.debug("output: {}".format(output))
+        self.logger.debug("output: {}".format(output))
 
     def _start_mnt(self):
         """ fork a process to start minitouch on android """
@@ -138,8 +142,8 @@ class MNTServer(object):
             "shell",
             "/data/local/tmp/minitouch",
         ]
-        logger.info("start minitouch: {}".format(" ".join(command_list)))
-        self.mnt_process = subprocess.Popen(command_list, stdout=subprocess.DEVNULL)
+        self.logger.info("start minitouch: {}".format(" ".join(command_list)))
+        self.mnt_process = subprocess.Popen(command_list, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def heartbeat(self):
         """ check if minitouch process alive """
@@ -152,7 +156,8 @@ class MNTConnection(object):
     _DEFAULT_HOST = config.DEFAULT_HOST
     _DEFAULT_BUFFER_SIZE = config.DEFAULT_BUFFER_SIZE
 
-    def __init__(self, port):
+    def __init__(self, port, loggesr):
+        self.logger = logger
         self.port = port
 
         # build connection
@@ -180,10 +185,10 @@ class MNTConnection(object):
         _, pid = socket_out.readline().replace("\n", "").replace("\r", "").split(" ")
         self.pid = pid
 
-        logger.info(
+        self.logger.info(
             "minitouch running on port: {}, pid: {}".format(self.port, self.pid)
         )
-        logger.info(
+        self.logger.info(
             "max_contact: {}; max_x: {}; max_y: {}; max_pressure: {}".format(
                 max_contacts, max_x, max_y, max_pressure
             )
@@ -192,7 +197,7 @@ class MNTConnection(object):
     def disconnect(self):
         self.client and self.client.close()
         self.client = None
-        logger.info("minitouch disconnected")
+        self.logger.info("minitouch disconnected")
 
     def send(self, content):
         """ send message and get its response """

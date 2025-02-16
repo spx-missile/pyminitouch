@@ -1,7 +1,7 @@
 import time
 from contextlib import contextmanager
 
-from pyminitouch.logger import logger
+# from pyminitouch.logger import logger
 from pyminitouch.connection import MNTConnection, MNTServer, safe_connection
 from pyminitouch import config
 from pyminitouch.utils import restart_adb
@@ -60,7 +60,7 @@ class CommandBuilder(object):
         """ apply current commands (_content), to your device """
         self.commit()
         final_content = self._content
-        logger.info("send operation: {}".format(final_content.replace("\n", "\\n")))
+        # logger.info("send operation: {}".format(final_content.replace("\n", "\\n")))
         connection.send(final_content)
         time.sleep(self._delay / 1000 + config.DEFAULT_DELAY)
         self.reset()
@@ -110,10 +110,11 @@ class MNTDevice(object):
         device.stop()
     """
 
-    def __init__(self, device_id):
+    def __init__(self, device_id, logger):
         self.device_id = device_id
         self.server = None
         self.connection = None
+        self.logger = logger
         self.start()
 
     def reset(self):
@@ -122,9 +123,9 @@ class MNTDevice(object):
 
     def start(self):
         # prepare for connection
-        self.server = MNTServer(self.device_id)
+        self.server = MNTServer(self.device_id, self.logger)
         # real connection
-        self.connection = MNTConnection(self.server.port)
+        self.connection = MNTConnection(self.server.port, self.logger)
 
     def stop(self):
         self.connection.disconnect()

@@ -4,7 +4,7 @@ import socket
 import subprocess
 
 from pyminitouch import config
-from pyminitouch.logger import logger
+# from pyminitouch.logger import logger
 
 
 def str2byte(content):
@@ -53,7 +53,7 @@ def is_device_connected(device_id):
             .replace("\n", "")
             .replace("\r", "")
         )
-        logger.info("device {} online".format(device_name))
+        # logger.info("device {} online".format(device_name))
     except subprocess.CalledProcessError:
         return False
     return True
