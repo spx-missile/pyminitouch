@@ -4,7 +4,6 @@ import socket
 import subprocess
 
 from pyminitouch import config
-# from pyminitouch.logger import logger
 
 
 def str2byte(content):

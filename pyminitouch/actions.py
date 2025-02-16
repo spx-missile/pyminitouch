@@ -1,7 +1,6 @@
 import time
 from contextlib import contextmanager
 
-# from pyminitouch.logger import logger
 from pyminitouch.connection import MNTConnection, MNTServer, safe_connection
 from pyminitouch import config
 from pyminitouch.utils import restart_adb
